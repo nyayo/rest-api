@@ -42,6 +42,11 @@ export const getThemeById = async (req, res) => {
 
     return res.json({ data: theme });
   } catch (err) {
+    if (err.message === 'Theme not found.') {
+      return res.status(404)
+        .json({ errors: ['Theme not found.'] });
+    }
+
     return res.status(500)
       .json({ errors: ['Error fetching theme.'] });
   }
@@ -76,14 +81,19 @@ export const updateThemeOptionsById = async (req, res) => {
 };
 
 export const uploadLogo = async (req, res) => {
-  const { image } = req.files;
-  const { imageHeight } = req.body;
-
   try {
+    const image = req.files?.image;
+    const { imageHeight } = req.body;
+
+    if (!image) {
+      return res.status(400)
+        .json({ errors: ['No image file provided.'] });
+    }
+
     await themeService.updateThemeLogoById(req.params.id, image, imageHeight);
-    res.json('Success');
+    return res.json('Success');
   } catch (err) {
-    res.status(500)
+    return res.status(500)
       .json({ errors: ['Error uploading image.'] });
   }
 };

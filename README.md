@@ -103,6 +103,16 @@ If you're considering deploying using docker-compose, here's a simple example. P
 docker-compose up -d
 ```
 
+If `rest-api/` and `web-app/` are sibling folders, you can also run the unified root stack (API + web app + MongoDB):
+
+```bash
+cd ..
+cp .env.example .env # optional, then adjust values if needed
+docker compose up -d --build
+```
+
+The root stack uses local MongoDB by default. To keep using an external database, set `DB_CONNECTION` in the root `.env`.
+
 ### Roadmap
 
 See the [open issues](https://github.com/CardMesh/rest-api/issues) for a complete list of proposed

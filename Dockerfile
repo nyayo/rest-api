@@ -17,13 +17,13 @@ FROM base AS build
 
 # Install node modules
 COPY --link package.json package-lock.json ./
-RUN npm install --production=false
+RUN npm install --production=false --legacy-peer-deps
 
 # Copy application code
 COPY --link . .
 
 # Remove development dependencies
-RUN npm prune --production
+RUN npm prune --omit=dev --legacy-peer-deps
 
 # Final stage for app image
 FROM base

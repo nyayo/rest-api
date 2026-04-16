@@ -150,11 +150,16 @@ export const deleteUser = async (req, res) => {
 };
 
 export const uploadImage = async (req, res) => {
-  const { image } = req.files;
-  const { imageHeight } = req.body;
-  const { id } = req.params;
-
   try {
+    const image = req.files?.image;
+    const { imageHeight } = req.body;
+    const { id } = req.params;
+
+    if (!image) {
+      return res.status(400)
+        .json({ errors: ['No image file provided.'] });
+    }
+
     await userService.uploadImage(id, image, imageHeight);
     return res.json('Success');
   } catch (err) {
