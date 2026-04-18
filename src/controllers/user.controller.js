@@ -130,8 +130,8 @@ export const getVCard = async (req, res) => {
 export const getVcf = async (req, res) => {
   try {
     const vcf = await userService.getVcf(req.params.id, req.query.v);
-    res.setHeader('Content-Type', 'text/vcard');
-    res.setHeader('Content-Disposition', `attachment; filename="${vcf.filename}"`);
+    res.setHeader('Content-Type', 'text/vcard; charset=utf-8');
+    res.setHeader('Content-Disposition', `inline; filename="${vcf.filename}"`);
     return res.send(vcf.content);
   } catch (err) {
     return res.status(404)
@@ -153,6 +153,7 @@ export const uploadImage = async (req, res) => {
   try {
     const image = req.files?.image;
     const { imageHeight } = req.body;
+    const imageName = req.body.imageName || 'avatar';
     const { id } = req.params;
 
     if (!image) {
@@ -160,7 +161,7 @@ export const uploadImage = async (req, res) => {
         .json({ errors: ['No image file provided.'] });
     }
 
-    await userService.uploadImage(id, image, imageHeight);
+    await userService.uploadImage(id, image, imageHeight, imageName);
     return res.json('Success');
   } catch (err) {
     return res.status(500)

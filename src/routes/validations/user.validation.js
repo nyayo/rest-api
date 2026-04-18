@@ -3,6 +3,9 @@ import { body } from 'express-validator';
 export const imageRules = [
   body('imageHeight')
     .isInt({ min: 1 }),
+  body('imageName')
+    .optional()
+    .isIn(['avatar', 'cover']),
 ];
 
 export const vCardRules = [

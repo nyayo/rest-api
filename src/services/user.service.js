@@ -200,22 +200,24 @@ export const deleteUser = async (id) => {
   }
 };
 
-export const uploadImage = async (id, image, imageHeight) => {
+export const uploadImage = async (id, image, imageHeight, imageName = 'avatar') => {
   try {
     const {
       size,
       format,
     } = await convertImage(image, +imageHeight);
 
-    const avatar = {
-      'vCard.avatar.size': size,
-      'vCard.avatar.format': format,
+    const imageTarget = imageName === 'cover' ? 'cover' : 'avatar';
+
+    const imageUpdate = {
+      [`vCard.${imageTarget}.size`]: size,
+      [`vCard.${imageTarget}.format`]: format,
     };
 
-    await User.findOneAndUpdate({ userId: id }, avatar)
+    await User.findOneAndUpdate({ userId: id }, imageUpdate)
       .exec();
   } catch (err) {
-    throw new Error('Error uploading avatar.');
+    throw new Error('Error uploading image.');
   }
 };
 

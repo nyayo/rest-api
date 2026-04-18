@@ -91,6 +91,17 @@ const AvatarSchema = createSchema({
   },
 });
 
+const CoverSchema = createSchema({
+  size: {
+    height: { type: Number },
+    width: { type: Number },
+  },
+  format: {
+    png: { type: String },
+    webp: { type: String },
+  },
+});
+
 const vCardSchema = createSchema({
   person: PersonSchema,
   professional: ProfessionalSchema,
@@ -98,6 +109,7 @@ const vCardSchema = createSchema({
   location: LocationSchema,
   socialMedia: SocialMediaSchema,
   avatar: AvatarSchema,
+  cover: CoverSchema,
 });
 
 const UserSchema = new mongoose.Schema({
