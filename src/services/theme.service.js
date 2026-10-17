@@ -2,6 +2,11 @@ import sanitize from 'mongo-sanitize';
 import Theme from '../models/theme.model.js';
 import convertImage from '../utils/image.util.js';
 import { themeDTO, themesByPageLimitAndSearchQueryDTO } from '../dto/theme.dto.js';
+import {
+  getCategory,
+  getCategoryDefaults,
+  paletteToThemeColor,
+} from '../utils/category.util.js';
 
 export const getThemesByPageLimitAndSearchQuery = async (page, limit, searchQuery) => {
   const skipDocs = (page - 1) * limit;
@@ -48,6 +53,31 @@ export const createTheme = async (options) => {
   const theme = await Theme.create({
     name: sanitizedOptions.name,
     color: {},
+    align: {},
+    display: {},
+    logo: {
+      size: {},
+      format: {},
+    },
+  });
+
+  return themeDTO(theme);
+};
+
+export const ensureCategoryTheme = async (categoryId) => {
+  const { themeId, palette } = getCategoryDefaults(categoryId);
+  const category = getCategory(categoryId);
+  const existing = await Theme.findOne({ themeId })
+    .exec();
+
+  if (existing) {
+    return themeDTO(existing);
+  }
+
+  const theme = await Theme.create({
+    themeId,
+    name: category.label,
+    color: paletteToThemeColor(palette),
     align: {},
     display: {},
     logo: {

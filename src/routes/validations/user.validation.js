@@ -1,4 +1,35 @@
-import { body } from 'express-validator';
+import { body, param } from 'express-validator';
+import { CATEGORY_IDS } from '../../utils/category.util.js';
+
+export const categoryRules = [
+  body('category')
+    .optional()
+    .isIn(CATEGORY_IDS),
+];
+
+export const categoryIdRules = [
+  param('id')
+    .isIn(CATEGORY_IDS),
+];
+
+export const updateUserRules = [
+  body('name')
+    .optional()
+    .isLength({
+      min: 4,
+      max: 255,
+    }),
+  body('email')
+    .optional()
+    .isEmail(),
+  body('role')
+    .optional()
+    .isIn(['user', 'admin', 'editor']),
+  body('themeId')
+    .optional({ checkFalsy: true })
+    .isUUID(),
+  ...categoryRules,
+];
 
 export const imageRules = [
   body('imageHeight')
@@ -100,4 +131,8 @@ export const vCardRules = [
   body('socialMedia.github')
     .optional({ checkFalsy: true })
     .isURL(),
+
+  body('category')
+    .optional()
+    .isIn(CATEGORY_IDS),
 ];

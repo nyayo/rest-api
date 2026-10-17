@@ -1,4 +1,5 @@
 import { body } from 'express-validator';
+import { CATEGORY_IDS } from '../../utils/category.util.js';
 
 export const signupRules = [
   body('email')
@@ -8,6 +9,12 @@ export const signupRules = [
       min: 4,
       max: 255,
     }),
+  body('category')
+    .optional()
+    .isIn(CATEGORY_IDS),
+  body('themeId')
+    .optional({ checkFalsy: true })
+    .isUUID(),
 ];
 
 export const loginRules = [

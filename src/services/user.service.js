@@ -3,6 +3,10 @@ import User from '../models/user.model.js';
 import convertImage from '../utils/image.util.js';
 import { userDTO, usersByPageLimitAndSearchQueryDTO, usersDTO } from '../dto/user.dto.js';
 import { generateVCard } from '../utils/vcard.util.js';
+import { isValidCategory } from '../utils/category.util.js';
+import * as authService from './auth.service.js';
+
+const USER_UPDATE_FIELDS = ['name', 'email', 'role', 'themeId', 'category'];
 
 export const updateUser = async (id, options) => {
   if (!options || typeof options !== 'object') {
@@ -10,10 +14,21 @@ export const updateUser = async (id, options) => {
   }
 
   const sanitizedOptions = sanitize(options);
+  const update = {};
+
+  USER_UPDATE_FIELDS.forEach((field) => {
+    if (sanitizedOptions[field] !== undefined && sanitizedOptions[field] !== '') {
+      update[field] = sanitizedOptions[field];
+    }
+  });
+
+  if (Object.keys(update).length === 0) {
+    throw new Error('No valid fields provided.');
+  }
 
   const user = await User.findOneAndUpdate(
     { userId: { $eq: id } },
-    sanitizedOptions,
+    update,
     { new: true },
   )
     .exec();
@@ -92,7 +107,7 @@ export const getUsersByPageLimitAndSearchQuery = async (page, limit, searchQuery
   const escapedSearchQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const searchPattern = new RegExp(escapedSearchQuery, 'i');
   const query = User.find()
-    .select('email name role userId themeId')
+    .select('email name role userId themeId category')
     .skip(skipDocs)
     .limit(limit);
   const searchQueries = [
@@ -147,6 +162,10 @@ export const updateUserVCard = async (userId, vCardData) => {
     'vCard.socialMedia': sanitizedVCardData.socialMedia,
   };
 
+  if (sanitizedVCardData.category) {
+    updateField.category = sanitizedVCardData.category;
+  }
+
   const user = await User.findOneAndUpdate({ userId }, updateField, { new: true })
     .exec();
 
@@ -168,6 +187,7 @@ export const getVCard = async (userId) => {
   return {
     ...user.vCard.toObject(),
     userId,
+    category: user.category || 'other',
   };
 };
 
@@ -226,4 +246,189 @@ export const getUsersByThemeId = async (themeId) => {
     .exec();
 
   return usersDTO(users);
+};
+
+const BULK_BATCH_SIZE = 50;
+const ALLOWED_ROLES = ['user', 'editor', 'admin'];
+const EMAIL_PATTERN = /.+@.+\..+/;
+
+const parseBooleanFlag = (value, fallback = false) => {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+
+  if (['false', '0', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+
+  return null;
+};
+
+export const validateBulkUserRow = (raw = {}, rowNumber) => {
+  const name = String(raw.name || '').trim();
+  const email = String(raw.email || '').trim().toLowerCase();
+  const role = String(raw.role || 'user').trim().toLowerCase() || 'user';
+  const category = String(raw.category || 'other').trim().toLowerCase() || 'other';
+  const themeId = String(raw.themeId || raw.themeid || '').trim();
+  const sendMail = parseBooleanFlag(raw.sendMail ?? raw.sendmail, false);
+
+  if (!name) {
+    return {
+      row: rowNumber,
+      email,
+      status: 'error',
+      message: 'Name is required.',
+    };
+  }
+
+  if (name.length < 4 || name.length > 255) {
+    return {
+      row: rowNumber,
+      email,
+      status: 'error',
+      message: 'Name must be between 4 and 255 characters.',
+    };
+  }
+
+  if (!email) {
+    return {
+      row: rowNumber,
+      email,
+      status: 'error',
+      message: 'Email is required.',
+    };
+  }
+
+  if (!EMAIL_PATTERN.test(email)) {
+    return {
+      row: rowNumber,
+      email,
+      status: 'error',
+      message: 'Email is invalid.',
+    };
+  }
+
+  if (!ALLOWED_ROLES.includes(role)) {
+    return {
+      row: rowNumber,
+      email,
+      status: 'error',
+      message: 'Role must be user, editor, or admin.',
+    };
+  }
+
+  if (!isValidCategory(category)) {
+    return {
+      row: rowNumber,
+      email,
+      status: 'error',
+      message: 'Category is invalid.',
+    };
+  }
+
+  if (sendMail === null) {
+    return {
+      row: rowNumber,
+      email,
+      status: 'error',
+      message: 'sendMail must be true or false.',
+    };
+  }
+
+  return {
+    row: rowNumber,
+    email,
+    status: 'ok',
+    message: '',
+    payload: {
+      name,
+      email,
+      role,
+      category,
+      themeId,
+      sendMail,
+    },
+  };
+};
+
+export const bulkCreateUsers = async (rawRows) => {
+  const seenEmails = new Set();
+  const prepared = rawRows.map((raw, index) => {
+    const validated = validateBulkUserRow(raw, index + 2);
+
+    if (validated.status === 'error') {
+      return validated;
+    }
+
+    if (seenEmails.has(validated.email)) {
+      return {
+        row: validated.row,
+        email: validated.email,
+        status: 'error',
+        message: 'Duplicate email in CSV.',
+      };
+    }
+
+    seenEmails.add(validated.email);
+    return validated;
+  });
+
+  const results = [...prepared];
+  const pendingIndexes = prepared
+    .map((item, index) => (item.status === 'ok' ? index : -1))
+    .filter((index) => index >= 0);
+
+  for (let i = 0; i < pendingIndexes.length; i += BULK_BATCH_SIZE) {
+    const batchIndexes = pendingIndexes.slice(i, i + BULK_BATCH_SIZE);
+    // Sequential batches of 50 keep Mongo write load bounded.
+    // eslint-disable-next-line no-await-in-loop
+    const settled = await Promise.allSettled(
+      batchIndexes.map((index) => authService.createUser(prepared[index].payload)),
+    );
+
+    settled.forEach((outcome, batchIndex) => {
+      const resultIndex = batchIndexes[batchIndex];
+      const current = results[resultIndex];
+
+      if (outcome.status === 'fulfilled') {
+        results[resultIndex] = {
+          row: current.row,
+          email: current.email,
+          status: 'ok',
+          message: 'Created.',
+        };
+        return;
+      }
+
+      results[resultIndex] = {
+        row: current.row,
+        email: current.email,
+        status: 'error',
+        message: outcome.reason?.message || 'Unable to create user.',
+      };
+    });
+  }
+
+  const created = results.filter((item) => item.status === 'ok').length;
+  const failed = results.length - created;
+
+  return {
+    created,
+    failed,
+    results: results.map((item) => ({
+      row: item.row,
+      email: item.email,
+      status: item.status,
+      message: item.message,
+    })),
+  };
 };

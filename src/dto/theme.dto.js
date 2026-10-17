@@ -28,6 +28,7 @@ export const themeDTO = (theme) => ({
     address: theme.display.address,
     map: theme.display.map,
     vCardBtn: theme.display.vCardBtn,
+    categoryBadge: theme.display.categoryBadge !== false,
   },
   align: {
     logo: theme.align.logo,

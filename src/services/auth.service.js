@@ -6,6 +6,8 @@ import * as emailService from './email.service.js';
 import { argon2Options } from '../configs/argon2.config.js';
 import { loginDTO } from '../dto/auth.dto.js';
 import { userDTO } from '../dto/user.dto.js';
+import { getCategoryDefaults } from '../utils/category.util.js';
+import * as themeService from './theme.service.js';
 
 export const login = async ({
   email,
@@ -38,16 +40,24 @@ export const login = async ({
 
 export const createUser = async (data) => {
   const {
-    themeId,
     email,
     name,
     role,
     sendMail,
   } = data;
 
+  let { themeId } = data;
+  const category = data.category || 'other';
+
   const isEmailExist = await User.findOne({ email: { $eq: email } });
   if (isEmailExist) {
     throw new Error('Email already exists.');
+  }
+
+  if (!themeId) {
+    const defaults = getCategoryDefaults(category);
+    const categoryTheme = await themeService.ensureCategoryTheme(category);
+    themeId = categoryTheme.themeId || defaults.themeId;
   }
 
   const password = await passwordService.generatePassword(10);
@@ -60,6 +70,7 @@ export const createUser = async (data) => {
     email,
     password: hashedPassword,
     role,
+    category,
     vCard: {
       person: {},
       professional: {},

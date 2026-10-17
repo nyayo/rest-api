@@ -4,6 +4,7 @@ export const userDTO = (user) => ({
   name: user.name,
   email: user.email,
   role: user.role,
+  category: user.category || 'other',
 });
 
 export const usersDTO = (users) => users.map((user) => userDTO(user));

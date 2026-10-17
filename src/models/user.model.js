@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import mongoose from 'mongoose';
+import { CATEGORY_IDS } from '../utils/category.util.js';
 
 const schemaOptions = { _id: false };
 
@@ -159,6 +160,12 @@ const UserSchema = new mongoose.Schema({
     type: String,
     enum: ['user', 'admin', 'editor'],
     default: 'user',
+  },
+  category: {
+    type: String,
+    enum: CATEGORY_IDS,
+    default: 'other',
+    index: true,
   },
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },

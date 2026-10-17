@@ -24,4 +24,7 @@ export const themeOptionsRules = [ // TODO add missing color..
     .isBoolean(),
   body('display.vCardBtn')
     .isBoolean(),
+  body('display.categoryBadge')
+    .optional()
+    .isBoolean(),
 ];

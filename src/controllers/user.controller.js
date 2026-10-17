@@ -2,6 +2,13 @@ import sanitizeHtml from 'sanitize-html';
 import * as userService from '../services/user.service.js';
 import { paginationOptions } from '../configs/pagination.config.js';
 import { sanitizeOptions } from '../configs/sanitize.config.js';
+import { BUSINESS_CATEGORIES, getCategoryDefaults } from '../utils/category.util.js';
+
+export const getCategories = (_req, res) => res.json({ data: BUSINESS_CATEGORIES });
+
+export const getCategoryDefaultsById = (req, res) => res.json({
+  data: getCategoryDefaults(req.params.id),
+});
 
 export const updateUser = async (req, res) => {
   try {
@@ -94,6 +101,7 @@ export const updateUserVCard = async (req, res) => {
     person,
     professional,
     socialMedia,
+    category,
   } = req.body;
   const { id: userId } = req.params;
 
@@ -109,6 +117,7 @@ export const updateUserVCard = async (req, res) => {
         bio: sanitizedBio,
       },
       socialMedia,
+      category,
     });
 
     return res.json({ data: { vCardSchema: updatedUser.vCard } });
@@ -130,12 +139,64 @@ export const getVCard = async (req, res) => {
 export const getVcf = async (req, res) => {
   try {
     const vcf = await userService.getVcf(req.params.id, req.query.v);
+    const userAgent = req.get('User-Agent') || '';
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(userAgent);
+
     res.setHeader('Content-Type', 'text/vcard; charset=utf-8');
-    res.setHeader('Content-Disposition', `inline; filename="${vcf.filename}"`);
+    if (!isMobile) {
+      res.setHeader('Content-Disposition', `attachment; filename="${vcf.filename}"`);
+    }
+
     return res.send(vcf.content);
   } catch (err) {
     return res.status(404)
       .json({ errors: ['User not found.'] });
+  }
+};
+
+export const bulkImportUsers = async (req, res) => {
+  try {
+    const csvFile = req.files?.file || req.files?.csv;
+
+    if (!csvFile) {
+      return res.status(400)
+        .json({ errors: ['CSV file is required.'] });
+    }
+
+    const maxBytes = 5 * 1024 * 1024;
+    if (csvFile.size > maxBytes) {
+      return res.status(400)
+        .json({ errors: ['CSV file must be 5 MB or smaller.'] });
+    }
+
+    const fileName = String(csvFile.name || '').toLowerCase();
+    if (!fileName.endsWith('.csv')) {
+      return res.status(400)
+        .json({ errors: ['Only CSV files are allowed.'] });
+    }
+
+    const csvText = csvFile.data.toString('utf8');
+    const parsed = Papa.parse(csvText, {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: (header) => String(header || '').trim().toLowerCase(),
+    });
+
+    if (parsed.errors.length > 0 && (!parsed.data || parsed.data.length === 0)) {
+      return res.status(400)
+        .json({ errors: ['Unable to parse CSV file.'] });
+    }
+
+    if (parsed.data.length > 1000) {
+      return res.status(400)
+        .json({ errors: ['CSV files cannot contain more than 1000 rows.'] });
+    }
+
+    const result = await userService.bulkCreateUsers(parsed.data);
+    return res.json(result);
+  } catch (err) {
+    return res.status(500)
+      .json({ errors: [err.message || 'Error importing users.'] });
   }
 };
 

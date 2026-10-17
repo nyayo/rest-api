@@ -15,6 +15,7 @@ const DisplaySchema = new mongoose.Schema({
   address: defaultTrue,
   map: defaultTrue,
   vCardBtn: defaultTrue,
+  categoryBadge: defaultTrue,
 }, { _id: false });
 
 const AlignSchema = new mongoose.Schema({
